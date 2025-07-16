@@ -1,4 +1,4 @@
-# 🚀 [NL2SQL Studio](https://nl2sql-studio.streamlit.app/) – Natural Language to SQL Query Engine
+# [NL2SQL Studio](https://nl2sql-studio.streamlit.app/) – Natural Language to SQL Query Engine
 
 **Built with OpenAI GPT-3.5 + Streamlit**  
 Transform plain English questions into powerful SQL queries — instantly.  
@@ -6,7 +6,7 @@ Upload your own database or explore the built-in CRM dataset.
 
 ---
 
-## 🧠 What It Does
+## What It Does
 
 > Ask: “Show me total sales by country.”  
 > The app:
@@ -17,7 +17,7 @@ Upload your own database or explore the built-in CRM dataset.
 ---
 
 
-## 🔧 Tech Stack
+## Tech Stack
 
 | Area | Tools |
 |------|-------|
@@ -28,13 +28,13 @@ Upload your own database or explore the built-in CRM dataset.
 | Visualization | Plotly |
 | Deployment | Streamlit Cloud |
 
-## 💼 Skills Showcased
+## Skills 
 
-- 🔗 LLM + SQL chaining using structured prompts
-- 🧠 OpenAI Function Calling (secure and efficient)
-- 📊 Automated SQL parsing and data visualization
-- 🧱 Database schema introspection & table viewer
-- 🧪 Reproducible demo dataset + live testable UI
-- ☁️ Streamlit Cloud deployment with secure API key handling
+-  LLM + SQL chaining using structured prompts
+-  OpenAI Function Calling (secure and efficient)
+-  Automated SQL parsing and data visualization
+-  Database schema introspection & table viewer
+-  Reproducible demo dataset + live testable UI
+-  Streamlit Cloud deployment with secure API key handling
 
 ---
