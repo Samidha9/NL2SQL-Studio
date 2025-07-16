@@ -6,98 +6,109 @@ import plotly.express as px
 import tempfile
 import os
 
-# Load OpenAI key from secrets
+# Load OpenAI key from Streamlit secrets
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 st.set_page_config(page_title="NL2SQL Studio", layout="centered")
-st.title("Ask Your Database Anything")
+st.title("🧠 NL2SQL Studio – Natural Language to SQL")
 
-# Check if built-in DB exists
-built_in_db_exists = os.path.exists("MiniCRM.db")
-
-# Step 1: Choose Database
+# Step 1: Choose database source
 st.subheader("📦 Choose your database")
 
+built_in_db = "MiniCRM.db"
 options = []
-if built_in_db_exists:
+if os.path.exists(built_in_db):
     options.append("Use built-in MiniCRM.db")
 options.append("Upload your own .db file")
 
-db_option = st.radio("Select database source:", options)
+db_choice = st.radio("Select database source:", options)
 
-# Step 2: Load selected DB
-if db_option == "Upload your own .db file":
-    uploaded_file = st.file_uploader("📤 Upload your SQLite `.db` file", type="db")
-    if uploaded_file:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as tmp_file:
-            tmp_file.write(uploaded_file.read())
-            db_path = tmp_file.name
-    else:
-        st.warning("👆 Please upload a `.db` file to continue.")
+if db_choice == "Upload your own .db file":
+    uploaded_file = st.file_uploader("📤 Upload your SQLite `.db` file", type=["db"])
+    if uploaded_file is None:
+        st.warning("Please upload a `.db` file to continue.")
         st.stop()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as tmp:
+        tmp.write(uploaded_file.read())
+        db_path = tmp.name
 else:
-    db_path = "MiniCRM.db"
-    if not built_in_db_exists:
-        st.error("Built-in MiniCRM.db not found. Please create or upload it first.")
-        st.stop()
+    db_path = built_in_db
 
-# Step 3: Connect to SQLite
+# Step 2: Connect to SQLite
 conn = sqlite3.connect(db_path)
 
-# Step 4: Show schema in sidebar
-st.sidebar.header("Database Schema")
+# Step 3: Display database schema in sidebar
+st.sidebar.header("📚 Database Schema")
+
 def get_schema(conn):
-    tables = pd.read_sql(
+    schema_text = ""
+    tables_df = pd.read_sql(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';", conn
     )
-    schema = ""
-    for table in tables["name"]:
-        df = pd.read_sql(f"PRAGMA table_info({table})", conn)
-        schema += f"Table: {table}\n{df.to_string(index=False)}\n\n"
-    return schema
+    for table in tables_df["name"]:
+        schema_text += f"Table: {table}\n"
+        df = pd.read_sql(f"PRAGMA table_info({table});", conn)
+        for _, row in df.iterrows():
+            schema_text += f"  - {row['name']}\n"
+        schema_text += "\n"
+    return schema_text
 
-schema = get_schema(conn)
+schema_str = get_schema(conn)
 
-# Show tables & columns in sidebar
-tables = pd.read_sql(
+# Sidebar display of tables and columns
+tables_df = pd.read_sql(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';", conn
 )
-for table in tables["name"]:
+for table in tables_df["name"]:
     with st.sidebar.expander(f"📄 {table}"):
-        columns = pd.read_sql(f"PRAGMA table_info({table})", conn)
-        for col in columns["name"]:
+        cols_df = pd.read_sql(f"PRAGMA table_info({table});", conn)
+        for col in cols_df["name"]:
             st.markdown(f"- {col}")
 
-# Step 5: Ask natural language query
-nl_query = st.text_input("Ask your question (e.g., 'Top 5 customers by total revenue')")
+# Step 4: Input natural language query
+nl_query = st.text_input("Ask a question (e.g., 'Top 5 customers by revenue')")
 
-# Step 6: Generate SQL using OpenAI
+# Step 5: Generate SQL with OpenAI
 def generate_sql(nl_query, schema):
-    system_prompt = f"""
+    prompt = f"""
 You are a helpful assistant that translates natural language questions into SQL queries for an SQLite database.
 Here is the database schema:
 {schema}
-Generate only the SQL query, no explanation or markdown formatting.
+Generate only the SQL query — no explanation, no markdown formatting.
+Make sure column names in the result are uniquely aliased.
 """
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": nl_query},
-        ],
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": nl_query}
+        ]
     )
     sql = response.choices[0].message.content.strip()
     return sql.replace("```sql", "").replace("```", "").strip()
 
-# Step 7: Run query and visualize
+# Step 6: Run SQL and display results
 if nl_query:
     try:
-        sql_query = generate_sql(nl_query, schema)
+        sql_query = generate_sql(nl_query, schema_str)
 
         if st.button("👁️ Show Generated SQL"):
             st.code(sql_query, language="sql")
 
         df = pd.read_sql(sql_query, conn)
+
+        # Fix duplicate column names if present
+        def ensure_unique_columns(df):
+            cols = pd.Series(df.columns)
+            for dup in cols[cols.duplicated()].unique():
+                dup_idx = cols[cols == dup].index
+                for i, idx in enumerate(dup_idx):
+                    cols[idx] = f"{dup}_{i+1}"
+            df.columns = cols
+            return df
+
+        df = ensure_unique_columns(df)
+
         st.dataframe(df)
 
         if len(df.columns) >= 2:
@@ -105,6 +116,7 @@ if nl_query:
             st.plotly_chart(fig, use_container_width=True)
 
     except Exception as e:
-        st.error(f" Error: {e}")
+        st.error(f"❌ Error: {e}")
 
+# Step 7: Close connection
 conn.close()
