@@ -37,33 +37,26 @@ else:
 # Step 2: Connect to SQLite
 conn = sqlite3.connect(db_path)
 
-# Step 3: Display database schema in sidebar
-st.sidebar.header("📚 Database Schema")
+# Step 3: Sidebar interactive table selector (Dropdown)
+st.sidebar.header("📚 Explore Tables")
 
-def get_schema(conn):
-    schema_text = ""
-    tables_df = pd.read_sql(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';", conn
-    )
-    for table in tables_df["name"]:
-        schema_text += f"Table: {table}\n"
-        df = pd.read_sql(f"PRAGMA table_info({table});", conn)
-        for _, row in df.iterrows():
-            schema_text += f"  - {row['name']}\n"
-        schema_text += "\n"
-    return schema_text
+tables = pd.read_sql(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';",
+    conn,
+)["name"].tolist()
 
-schema_str = get_schema(conn)
+if not tables:
+    st.sidebar.info("No tables found.")
+else:
+    selected_table = st.sidebar.selectbox("Select a table to view:", tables)
+    if selected_table:
+        try:
+            df = pd.read_sql(f"SELECT * FROM {selected_table} LIMIT 100;", conn)
+            st.sidebar.write(f"Showing first 100 rows from `{selected_table}`:")
+            st.sidebar.dataframe(df, use_container_width=True)
+        except Exception as e:
+            st.sidebar.warning(f"⚠️ Could not load table '{selected_table}': {e}")
 
-# Sidebar display of tables and columns
-tables_df = pd.read_sql(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';", conn
-)
-for table in tables_df["name"]:
-    with st.sidebar.expander(f"📄 {table}"):
-        cols_df = pd.read_sql(f"PRAGMA table_info({table});", conn)
-        for col in cols_df["name"]:
-            st.markdown(f"- {col}")
 
 # Step 4: Input natural language query
 nl_query = st.text_input("Ask a question (e.g., 'Top 5 customers by revenue')")
@@ -87,7 +80,20 @@ Make sure column names in the result are uniquely aliased.
     sql = response.choices[0].message.content.strip()
     return sql.replace("```sql", "").replace("```", "").strip()
 
-# Step 6: Run SQL and display results
+# Step 6: Build schema string
+def get_schema(conn):
+    schema = ""
+    for table in tables:
+        schema += f"Table: {table}\n"
+        info = pd.read_sql(f"PRAGMA table_info({table});", conn)
+        for _, row in info.iterrows():
+            schema += f"  - {row['name']}\n"
+        schema += "\n"
+    return schema
+
+schema_str = get_schema(conn)
+
+# Step 7: Run SQL and display results
 if nl_query:
     try:
         sql_query = generate_sql(nl_query, schema_str)
@@ -97,7 +103,7 @@ if nl_query:
 
         df = pd.read_sql(sql_query, conn)
 
-        # Fix duplicate column names if present
+        # Fix duplicate column names if any
         def ensure_unique_columns(df):
             cols = pd.Series(df.columns)
             for dup in cols[cols.duplicated()].unique():
@@ -108,7 +114,6 @@ if nl_query:
             return df
 
         df = ensure_unique_columns(df)
-
         st.dataframe(df)
 
         if len(df.columns) >= 2:
@@ -118,5 +123,5 @@ if nl_query:
     except Exception as e:
         st.error(f"❌ Error: {e}")
 
-# Step 7: Close connection
+# Step 8: Close DB connection
 conn.close()
