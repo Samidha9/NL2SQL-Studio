@@ -10,10 +10,10 @@ import os
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 st.set_page_config(page_title="NL2SQL Studio", layout="centered")
-st.title("🧠 NL2SQL Studio – Natural Language to SQL")
+st.title("NL2SQL Studio – Natural Language to SQL")
 
 # Step 1: Choose database source
-st.subheader("📦 Choose your database")
+st.subheader("Choose your database")
 
 built_in_db = "MiniCRM.db"
 options = []
@@ -38,7 +38,7 @@ else:
 conn = sqlite3.connect(db_path)
 
 # Step 3: Sidebar interactive table selector (Dropdown)
-st.sidebar.header("📚 Explore Tables")
+st.sidebar.header("Explore Tables")
 
 tables = pd.read_sql(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';",
